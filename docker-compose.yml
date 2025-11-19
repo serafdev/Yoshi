@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  yoshi-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yoshi-bot
+    restart: unless-stopped
+    volumes:
+      # Mount your config.toml here
+      - ./config.toml:/app/config.toml:ro
+    environment:
+      - RUST_LOG=info
+    # Uncomment if you need to expose any ports
+    # ports:
+    #   - "8080:8080"
+    networks:
+      - yoshi-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  yoshi-network:
+    driver: bridge

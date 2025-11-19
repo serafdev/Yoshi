@@ -1,0 +1,9 @@
+target/
+legacy_python/
+.git/
+.gitignore
+*.md
+config.toml
+Cargo.lock
+.vscode/
+.idea/
