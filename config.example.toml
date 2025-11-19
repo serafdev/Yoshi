@@ -1,0 +1,22 @@
+# Yoshi Bot Configuration Example
+# Copy this file to config.toml and fill in your credentials
+
+[bot]
+# Command prefix for all platforms (can be overridden per platform)
+command_prefix = "!"
+
+# Discord Configuration
+[platforms.discord]
+token = "YOUR_DISCORD_BOT_TOKEN"
+# Optional: override command prefix for Discord
+# command_prefix = "!"
+
+# Slack Configuration (optional)
+# [platforms.slack]
+# token = "YOUR_SLACK_BOT_TOKEN"
+# command_prefix = "!"
+
+# Telegram Configuration (optional)
+# [platforms.telegram]
+# token = "YOUR_TELEGRAM_BOT_TOKEN"
+# command_prefix = "/"
