@@ -5,7 +5,7 @@ mod config;
 
 use anyhow::Result;
 use config::Config;
-use core::{CommandRegistry, Platform};
+use core::CommandRegistry;
 use std::sync::Arc;
 use tracing::{info, error};
 use tracing_subscriber;
@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     let registry = Arc::new(registry);
 
     // Start enabled platforms
-    let mut handles = vec![];
+    let mut handles: Vec<tokio::task::JoinHandle<()>> = vec![];
 
     #[cfg(feature = "discord")]
     if let Some(discord_config) = config.platforms.discord {

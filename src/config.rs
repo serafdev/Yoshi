@@ -68,7 +68,7 @@ impl Config {
             "/etc/yoshi/config.toml",
         ];
 
-        for path in paths {
+        for path in &paths {
             if Path::new(path).exists() {
                 return Self::from_file(path);
             }
