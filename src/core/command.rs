@@ -91,3 +91,156 @@ impl Default for CommandRegistry {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::{Message, MessageContent, Author, Responder};
+    use std::sync::Mutex;
+
+    struct TestCommand {
+        name: String,
+        description: String,
+        executions: Arc<Mutex<Vec<Vec<String>>>>,
+    }
+
+    #[async_trait]
+    impl Command for TestCommand {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn description(&self) -> &str {
+            &self.description
+        }
+
+        async fn execute(&self, _ctx: Context, args: Vec<String>) -> Result<()> {
+            self.executions.lock().unwrap().push(args);
+            Ok(())
+        }
+
+        fn aliases(&self) -> Vec<&str> {
+            if self.name == "test" {
+                vec!["t"]
+            } else {
+                vec![]
+            }
+        }
+    }
+
+    struct TestResponder {
+        messages: Arc<Mutex<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl Responder for TestResponder {
+        async fn send_message(&self, _channel_id: &str, content: String) -> Result<()> {
+            self.messages.lock().unwrap().push(content);
+            Ok(())
+        }
+    }
+
+    fn create_test_context() -> Context {
+        let message = Message {
+            id: "1".to_string(),
+            author: Author {
+                id: "user1".to_string(),
+                name: "Test User".to_string(),
+                is_bot: false,
+            },
+            content: MessageContent::Text("test message".to_string()),
+            channel_id: "channel1".to_string(),
+            platform: "test".to_string(),
+        };
+
+        let responder = Arc::new(TestResponder {
+            messages: Arc::new(Mutex::new(Vec::new())),
+        });
+
+        Context::new(message, responder)
+    }
+
+    #[test]
+    fn test_registry_new() {
+        let registry = CommandRegistry::new();
+        assert_eq!(registry.all().len(), 0);
+    }
+
+    #[test]
+    fn test_registry_register() {
+        let mut registry = CommandRegistry::new();
+        let executions = Arc::new(Mutex::new(Vec::new()));
+
+        let cmd = Arc::new(TestCommand {
+            name: "test".to_string(),
+            description: "A test command".to_string(),
+            executions: executions.clone(),
+        });
+
+        registry.register(cmd);
+
+        assert_eq!(registry.all().len(), 1);
+        assert!(registry.get("test").is_some());
+        assert!(registry.get("t").is_some()); // alias
+    }
+
+    #[tokio::test]
+    async fn test_registry_execute() {
+        let mut registry = CommandRegistry::new();
+        let executions = Arc::new(Mutex::new(Vec::new()));
+
+        let cmd = Arc::new(TestCommand {
+            name: "test".to_string(),
+            description: "A test command".to_string(),
+            executions: executions.clone(),
+        });
+
+        registry.register(cmd);
+
+        let ctx = create_test_context();
+        let result = registry.execute("test arg1 arg2", ctx).await.unwrap();
+
+        assert!(result);
+        let execs = executions.lock().unwrap();
+        assert_eq!(execs.len(), 1);
+        assert_eq!(execs[0], vec!["arg1", "arg2"]);
+    }
+
+    #[tokio::test]
+    async fn test_registry_execute_alias() {
+        let mut registry = CommandRegistry::new();
+        let executions = Arc::new(Mutex::new(Vec::new()));
+
+        let cmd = Arc::new(TestCommand {
+            name: "test".to_string(),
+            description: "A test command".to_string(),
+            executions: executions.clone(),
+        });
+
+        registry.register(cmd);
+
+        let ctx = create_test_context();
+        let result = registry.execute("t", ctx).await.unwrap();
+
+        assert!(result);
+        assert_eq!(executions.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_registry_execute_not_found() {
+        let registry = CommandRegistry::new();
+        let ctx = create_test_context();
+        let result = registry.execute("notfound", ctx).await.unwrap();
+
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_registry_execute_empty() {
+        let registry = CommandRegistry::new();
+        let ctx = create_test_context();
+        let result = registry.execute("", ctx).await.unwrap();
+
+        assert!(!result);
+    }
+}
