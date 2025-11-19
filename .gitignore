@@ -255,3 +255,7 @@ key.ini
 # Added by cargo
 
 /target
+Cargo.lock
+
+# Bot configuration (contains secrets)
+config.toml
