@@ -1,0 +1,122 @@
+stages:
+  - test
+  - build
+  - docker
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  RUST_BACKTRACE: "1"
+
+# Cache configuration
+.cargo_cache:
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .cargo/
+      - target/
+
+# Test job
+test:
+  stage: test
+  image: rust:latest
+  extends: .cargo_cache
+  script:
+    - rustc --version
+    - cargo --version
+    - cargo test --verbose
+    - cargo test --all-features --verbose
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# Format check
+fmt:
+  stage: test
+  image: rust:latest
+  extends: .cargo_cache
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# Clippy linting
+clippy:
+  stage: test
+  image: rust:latest
+  extends: .cargo_cache
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+  allow_failure: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# Code coverage
+coverage:
+  stage: test
+  image: rust:latest
+  extends: .cargo_cache
+  script:
+    - cargo install cargo-tarpaulin
+    - cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+  coverage: '/\d+\.\d+% coverage/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: cobertura.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# Build for multiple targets
+build:linux:
+  stage: build
+  image: rust:latest
+  extends: .cargo_cache
+  script:
+    - cargo build --release --all-features
+  artifacts:
+    paths:
+      - target/release/yoshi_bot
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+build:musl:
+  stage: build
+  image: rust:latest
+  extends: .cargo_cache
+  script:
+    - rustup target add x86_64-unknown-linux-musl
+    - apt-get update && apt-get install -y musl-tools
+    - cargo build --release --target x86_64-unknown-linux-musl --all-features
+  artifacts:
+    paths:
+      - target/x86_64-unknown-linux-musl/release/yoshi_bot
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Docker build
+docker:build:
+  stage: docker
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG .
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    - docker push $CI_REGISTRY_IMAGE:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  only:
+    - main
+    - master
