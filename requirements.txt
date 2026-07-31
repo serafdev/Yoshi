@@ -4,4 +4,4 @@ chardet==3.0.4
 discord.py==1.5.0
 multidict==4.6.1
 pkg-resources==0.0.0
-websockets==8.1
+websockets==17.0.1
